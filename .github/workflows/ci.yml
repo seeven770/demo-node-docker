@@ -6,8 +6,12 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  build-and-scan:
+  build-test-scan-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,15 +32,29 @@ jobs:
           sleep 5
           curl -f http://localhost:3000
 
+      - name: Convertir le nom du dépôt en minuscules
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}:latest" >> $GITHUB_ENV
+
+      - name: Connexion à GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build de l'image Docker
-        run: docker build -t demo-node-docker .
+        run: docker build -t $IMAGE_NAME .
 
       - name: Scan de sécurité avec Trivy
         uses: aquasecurity/trivy-action@0.24.0
         with:
-          image-ref: demo-node-docker
+          image-ref: ${{ env.IMAGE_NAME }}
           format: table
           exit-code: 0
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH
+
+      - name: Push de l'image vers GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker push $IMAGE_NAME
