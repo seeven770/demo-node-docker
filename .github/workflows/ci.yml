@@ -1,0 +1,42 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer les dépendances
+        run: npm install
+
+      - name: Vérifier que l'application démarre
+        run: |
+          node app.js &
+          sleep 5
+          curl -f http://localhost:3000
+
+      - name: Build de l'image Docker
+        run: docker build -t demo-node-docker .
+
+      - name: Scan de sécurité avec Trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: demo-node-docker
+          format: table
+          exit-code: 0
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
